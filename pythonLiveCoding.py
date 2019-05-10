@@ -6,6 +6,7 @@ import sublime, sublime_plugin
 
 XMIN, YMIN, XMAX, YMAX = list(range(4))
 LC_TARGET_VIEW_ID = 'lc_tgtViewId'
+LC_TARGET_PYGLET_VIEW_ID = 'lc_tgtPygletViewId'
 
 
 def find_view( viewId ):
@@ -45,6 +46,7 @@ class ResetCommand( BaseWindowCommand ):
         } )
         for view in self.window.views():
             view.settings().erase( LC_TARGET_VIEW_ID )
+            view.settings().erase( LC_TARGET_PYGLET_VIEW_ID )
 
 
 class StartCommand( BaseWindowCommand ):
@@ -84,6 +86,47 @@ class StartCommand( BaseWindowCommand ):
         srcView.settings().set( 'word_wrap', False )
         tgtView.settings().set( 'word_wrap', False )
         srcView.settings().set( LC_TARGET_VIEW_ID, tgtView.id() )
+
+
+class PygletCommand( BaseWindowCommand ):
+
+    def create_pane( self ):
+        
+        rows, cols, cells = self.get_layout()
+        active_idx = self.window.active_group()
+
+        old_cell = cells[active_idx]
+
+        cols.insert( old_cell[XMAX], (cols[old_cell[XMIN]] + cols[old_cell[XMAX]]) / 2 )
+        new_cell = [old_cell[XMAX], old_cell[YMIN], old_cell[XMAX] + 1, old_cell[YMAX]]
+        cells.append( new_cell )
+
+        self.fixedSetLayout( self.window, {
+            'cols': cols, 
+            'rows': rows, 
+            'cells': cells
+        } )
+
+        srcView = self.window.active_view_in_group( active_idx )
+        tgtView = self.window.active_view_in_group( len( cells ) - 1 )
+        
+        return srcView, tgtView
+
+
+
+    def run( self ):
+
+        active_group = self.window.active_group()
+        srcView = self.window.active_view_in_group( active_group )
+        if srcView.settings().has( LC_TARGET_PYGLET_VIEW_ID ):
+            msg = 'Already a live coding session for the current view.'
+            sublime.message_dialog( msg )
+            return
+        
+        srcView, tgtView = self.create_pane()
+        srcView.settings().set( 'word_wrap', False )
+        tgtView.settings().set( 'word_wrap', False )
+        srcView.settings().set( LC_TARGET_PYGLET_VIEW_ID, tgtView.id() )
  
 
 class TargetViewReplaceCommand( sublime_plugin.TextCommand ):
@@ -128,8 +171,32 @@ class SourceViewEventListener( sublime_plugin.ViewEventListener ):
 
     @classmethod
     def is_applicable( cls, settings ):
-        return settings.has( LC_TARGET_VIEW_ID )
+        return settings.has( LC_TARGET_VIEW_ID ) or settings.has( LC_TARGET_PYGLET_VIEW_ID )
 
     def on_modified_async( self ):
         tgtView = find_view( self.view.settings().get( LC_TARGET_VIEW_ID ) )
-        tgtView.run_command( 'target_view_replace', {'srcViewId': self.view.id()} )
+        if tgtView is not None:
+            
+            tgtView.run_command( 'target_view_replace', {'srcViewId': self.view.id()} )
+
+
+        else:
+            print( 'her' )
+            tgtView = find_view( self.view.settings().get( LC_TARGET_PYGLET_VIEW_ID ) )
+
+            tgtView.add_phantom("test", tgtView.sel()[0], '<img src="file:///C:/Users/Jamie%20Davies/Documents/git/live-py-plugin/plugin/PySrc/screenshot.png">', sublime.LAYOUT_BLOCK )
+            #if not tgtView.file_name():
+            #ps = sublime.PhantomSet(tgtView, 'minihtml_preview_phantom')
+            #content = '<img src="C:/Users/Jamie Davies/Documents/git/live-py-plugin/plugin/PySrc/screenshot.png"></img>'
+            #p = sublime.Phantom(sublime.Region(0), content, sublime.LAYOUT_BLOCK)
+            #ps.update([p]) 
+                #tgtView.open_file( r'C:\Users\Jamie Davies\Documents\git\live-py-plugin\plugin\PySrc\screenshot.png' )
+            #tgtView.file_name( r'C:\Users\Jamie Davies\Documents\git\live-py-plugin\plugin\PySrc\screenshot.png' )
+
+            #lse:
+            #    tgtView.run_command( 'reopen' )
+            #print( 'here' )
+
+        #self.window.open_file(os.path.join(dir_name, settings_name + ".sublime-settings"))
+
+        #/reopen
